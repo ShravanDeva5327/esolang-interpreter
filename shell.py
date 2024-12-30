@@ -1,0 +1,31 @@
+from lexer import *
+
+while True:
+    try:
+        text = input(">>> ")
+
+        # Generate tokens
+        lexer_ = Lexer('<stdin>', text)
+        tokens = lexer_.tokenize()
+
+        if tokens is not None:
+            # print(tokens)
+
+            # Generate AST
+            parser_ = Parser(tokens)
+            ast = parser_.parse()
+            if ast is not None:
+                # print(ast)
+
+                interpreter_ = Interpreter(ast)
+                result = interpreter_.interpret()
+                print(result)
+    
+    except EOFError:
+        print("")
+        break
+    except KeyboardInterrupt:
+        print("")
+        continue
+    except Exception as e:
+        print(e)
