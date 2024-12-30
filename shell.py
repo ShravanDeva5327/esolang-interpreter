@@ -1,5 +1,6 @@
 from lexer import *
 
+variables = {}
 while True:
     try:
         text = input(">>> ")
@@ -17,9 +18,10 @@ while True:
             if ast is not None:
                 # print(ast)
 
-                interpreter_ = Interpreter(ast)
+                interpreter_ = Interpreter(ast, variables)
                 result = interpreter_.interpret()
-                print(result)
+                if result.value is not None:
+                    print(result)
     
     except EOFError:
         print("")

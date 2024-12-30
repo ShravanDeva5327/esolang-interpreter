@@ -1,7 +1,11 @@
+import string
+
+LETTERS = string.ascii_letters
 DIGITS = '0123456789'
 
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
+TT_STR = 'STRING'
 TT_PLUS = 'PLUS'
 TT_MINUS = 'MINUS'
 TT_MUL = 'MUL'
@@ -10,7 +14,11 @@ TT_POW = 'POW'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 
-TT_STR = 'STRING'
+TT_IDENTIFIER = 'IDENTIFIER'
+TT_KEYWORD = 'KEYWORD'
+TT_EQUALS = 'EQUALS'
+
+KEYWORDS = ['var']
 
 class Token:
     def __init__(self, type_: str, value_ : str = None):
@@ -21,9 +29,12 @@ class Token:
         if self.type == TT_STR:
             return f'{self.type}(\'{self.value}\')'
         return f'{self.type}({self.value})' if self.value is not None else self.type
+
+    def __eq__(self, other: 'Token') -> bool:
+        return self.type == other.type and self.value == other.value
     
     def to_str(self):
-        if self.type in (TT_INT, TT_FLOAT):
+        if self.type in (TT_INT, TT_FLOAT, TT_KEYWORD, TT_IDENTIFIER):
             return f'{self.value} '
         elif self.type == TT_PLUS:
             return f'+ '
@@ -39,6 +50,8 @@ class Token:
             return f'('
         elif self.type == TT_RPAREN:
             return f') '
+        elif self.type == TT_EQUALS:
+            return f'= '
         elif self.type == TT_STR:
             return f'{self.value} '
 
@@ -98,6 +111,13 @@ class Lexer:
 
                 if num_str.count('.') == 0: tokens.append(Token(TT_INT, int(num_str)))
                 elif num_str.count('.') == 1: tokens.append(Token(TT_FLOAT, float(num_str)))
+            elif self.current_char in LETTERS:
+                str_ = ''
+                while self.current_char != None and self.current_char in LETTERS + DIGITS:
+                    str_ += self.current_char
+                    self.advance()
+                
+                tokens.append(Token(TT_KEYWORD, str_) if str_ in KEYWORDS else Token(TT_IDENTIFIER, str_))
             elif self.current_char == '\'':
                 self.advance()
                 str_ = ''
@@ -130,6 +150,10 @@ class Lexer:
             elif self.current_char == ')':
                 tokens.append(Token(TT_RPAREN))
                 self.advance()
+            elif self.current_char == '=':
+                tokens.append(Token(TT_EQUALS))
+                self.advance()
+            
             else:
                 LexError(self.pos.copy(),'Invalid Character', f'"{self.current_char}"')
                 return None
@@ -146,7 +170,7 @@ class ParserError:
         highlight = ''
         for i in range(len(tokens)):
             if i == idx:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD):
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'*len(tokens[i].to_str()) + ' '
                 elif tokens[i].type == TT_POW:
@@ -162,7 +186,7 @@ class ParserError:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'
             else:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD):
                     expr += f'{tokens[i].to_str()}'
                     highlight += ' '*(len(tokens[i].to_str()) + 1)
                 elif tokens[i].type == TT_POW:
@@ -188,6 +212,20 @@ class Node:
     def __repr__(self) -> str:
         return f'{self.token}'
     
+class varAssignNode:
+    def __init__(self, var_name: Token, value: Node):
+        self.var_name = var_name
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f'{{assign {self.var_name.value} = {self.value}}}'
+    
+class varAccessNode:
+    def __init__(self, var_name: Token):
+        self.var_name = var_name
+
+    def __repr__(self) -> str:
+        return f'{{access {self.var_name.value}}}'
 class BinOpNode:
     def __init__(self, op: Token, left_node: Node, right_node: Node):
         self.op = op
@@ -218,6 +256,9 @@ class Parser:
         if token.type in (TT_INT, TT_FLOAT, TT_STR):
             self.advance()
             return Node(token)
+        elif token.type == TT_IDENTIFIER:
+            self.advance()
+            return varAccessNode(token)
         elif token.type in (TT_PLUS, TT_MINUS):
             self.advance()
             right = self.factor()
@@ -242,6 +283,21 @@ class Parser:
         res = self.bin_op(self.pow, (TT_MUL, TT_DIV))
         return res
     def expr(self) -> BinOpNode:
+        if self.current_token.__eq__(Token(TT_KEYWORD, 'var')):
+            self.advance()
+            if self.current_token.type != TT_IDENTIFIER:
+                ParserError(self.tokens, self.idx, 'Syntax Error', f'Expected an identifier after var')
+                return None
+            var_name = self.current_token
+            self.advance()
+            if self.current_token.type != TT_EQUALS:
+                ParserError(self.tokens, self.idx, 'Syntax Error', f'Expected an \'=\' after {var_name.to_str()}')
+                return None
+            self.advance()
+            
+            expr_ = self.expr()
+            return varAssignNode(var_name, expr_)
+
         return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
     
     
@@ -268,31 +324,54 @@ class Parser:
             return None
         return res
 
-class Interpreter:
-    def __init__(self, tree: BinOpNode|Node):
-        self.tree = tree
+class VariablelTable:
+    def __init__(self, variables: dict[str, int|float|str] = {}):
+        self.variables = variables
     
-    def visit(self, node: BinOpNode|Node) -> int|float:
+    def get(self, var_name: str):
+        value =  self.variables.get(var_name, None)
+        return value
+    
+    def set(self, var_name: str, value):
+        self.variables[var_name] = value
+
+    def remove(self, var_name: str):
+        del self.variables[var_name]
+class Interpreter:
+    def __init__(self, tree: BinOpNode|Node, variables: dict[str, int|float|str] = {}):
+        self.tree = tree
+        self.variable_table = VariablelTable(variables)
+    
+    def visit(self, node: BinOpNode|Node|varAccessNode|varAssignNode) -> Token:
         if isinstance(node, Node):
             return node.token
+        elif isinstance(node, varAssignNode):
+            self.variable_table.set(node.var_name.value, self.visit(node.value).value)
+            return Token(self.visit(node.value).type, self.visit(node.value).value)
+        elif isinstance(node, varAccessNode):
+            value = self.variable_table.get(node.var_name.value)
+            if value is None:
+                raise Exception(f'Runtime Error: Variable \'{node.var_name.value}\' not defined')
+            return Token(TT_INT, value) if isinstance(value, int) else Token(TT_FLOAT, value) if isinstance(value, float) else Token(TT_STR, value)
         elif isinstance(node, BinOpNode):
             if node.op.type == TT_PLUS:
-                val = self.visit(node.left_node).value + self.visit(node.right_node).value
                 if self.visit(node.left_node).type == TT_STR:
                     if self.visit(node.right_node).type == TT_STR:
                         return Token(TT_STR, self.visit(node.left_node).value + self.visit(node.right_node).value)
                     else:
                         raise Exception('Runtime Error: Cannot add string to a non-string')
+                elif self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Cannot add string to a non-string')
+                val = self.visit(node.left_node).value + self.visit(node.right_node).value
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_MINUS:
-                val = self.visit(node.left_node).value - self.visit(node.right_node).value
                 if self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' - \' for strings')
+                val = self.visit(node.left_node).value - self.visit(node.right_node).value
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_MUL:
-                val = self.visit(node.left_node).value * self.visit(node.right_node).value
                 if self.visit(node.left_node).type == TT_STR:
                     if self.visit(node.right_node).type == TT_INT:
                         return Token(TT_STR, self.visit(node.left_node).value * self.visit(node.right_node).value)
@@ -303,6 +382,7 @@ class Interpreter:
                         return Token(TT_STR, self.visit(node.left_node).value * self.visit(node.right_node).value)
                     else:
                         raise Exception('Runtime Error: Cannot multiply string with a non-integer')
+                val = self.visit(node.left_node).value * self.visit(node.right_node).value
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_DIV:

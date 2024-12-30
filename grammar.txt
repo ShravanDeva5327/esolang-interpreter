@@ -1,4 +1,15 @@
-expression: term ((PLUS|MINUS) term)*
-term: power ((MUL|DIV) power)*
-power: factor (POW factor)*
-factor: INT|FLOAT|(expr)
+                                          |
+expression  : var (EQUALS expression)?    |    
+            : term ((PLUS|MINUS) term)*   |
+term        : power ((MUL|DIV) power)*    |    order of priority       
+power       : factor (POW factor)*        |            
+factor      : INT|FLOAT|(expr)            |         
+                                          V
+
+
+
+# Variables
+
+var        var_name     =    expression
+ ^          ^           ^
+keyword  identifier   equals
