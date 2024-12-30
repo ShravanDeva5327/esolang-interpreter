@@ -10,6 +10,7 @@ TT_POW = 'POW'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 
+TT_STR = 'STRING'
 
 class Token:
     def __init__(self, type_: str, value_ : str = None):
@@ -17,6 +18,8 @@ class Token:
         self.value = value_
     
     def __repr__(self) -> str:
+        if self.type == TT_STR:
+            return f'{self.type}(\'{self.value}\')'
         return f'{self.type}({self.value})' if self.value is not None else self.type
     
     def to_str(self):
@@ -36,6 +39,8 @@ class Token:
             return f'('
         elif self.type == TT_RPAREN:
             return f') '
+        elif self.type == TT_STR:
+            return f'{self.value} '
 
 class Position:
     def __init__(self, idx: int, ln: int, col: int, filename: str, filetxt: str):
@@ -78,7 +83,6 @@ class Lexer:
         
     def tokenize(self):
         tokens = []
-        error = 0
         while self.current_char != None:
             if self.current_char in " \t":
                 self.advance()
@@ -94,7 +98,17 @@ class Lexer:
 
                 if num_str.count('.') == 0: tokens.append(Token(TT_INT, int(num_str)))
                 elif num_str.count('.') == 1: tokens.append(Token(TT_FLOAT, float(num_str)))
-
+            elif self.current_char == '\'':
+                self.advance()
+                str_ = ''
+                while self.current_char != None and self.current_char != '\'':
+                    str_ += self.current_char
+                    self.advance()
+                if self.current_char == None:
+                    LexError(self.pos.copy(),'Invalid String', f'\'{str_}')
+                    return None
+                self.advance()
+                tokens.append(Token(TT_STR, str_))
             elif self.current_char == '+':
                 tokens.append(Token(TT_PLUS))
                 self.advance()
@@ -132,9 +146,9 @@ class ParserError:
         highlight = ''
         for i in range(len(tokens)):
             if i == idx:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR):
                     expr += f'{tokens[i].to_str()}'
-                    highlight += '^ '
+                    highlight += '^'*len(tokens[i].to_str()) + ' '
                 elif tokens[i].type == TT_POW:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^^ '
@@ -148,9 +162,9 @@ class ParserError:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'
             else:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR):
                     expr += f'{tokens[i].to_str()}'
-                    highlight += '  '
+                    highlight += ' '*(len(tokens[i].to_str()) + 1)
                 elif tokens[i].type == TT_POW:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '   '
@@ -167,7 +181,7 @@ class ParserError:
         message = f'{expr}\n{highlight}\n{error_name}: {details}'
         raise Exception(message)
 
-class NumberNode:
+class Node:
     def __init__(self, token: Token):
         self.token = token
     
@@ -175,7 +189,7 @@ class NumberNode:
         return f'{self.token}'
     
 class BinOpNode:
-    def __init__(self, op: Token, left_node: NumberNode, right_node: NumberNode):
+    def __init__(self, op: Token, left_node: Node, right_node: Node):
         self.op = op
         self.left_node = left_node
         self.right_node = right_node
@@ -197,20 +211,20 @@ class Parser:
             self.current_token = Token(None)
         return self.current_token
     
-    def factor(self) -> NumberNode:
+    def factor(self) -> Node:
         if self.idx >= len(self.tokens):
             return None
         token = self.current_token
-        if token.type in (TT_INT, TT_FLOAT):
+        if token.type in (TT_INT, TT_FLOAT, TT_STR):
             self.advance()
-            return NumberNode(token)
+            return Node(token)
         elif token.type in (TT_PLUS, TT_MINUS):
             self.advance()
             right = self.factor()
             if right == None:
                 ParserError(self.tokens, self.idx - 1, 'Syntax Error:', f'Expected an expression after {token.to_str()}')
                 return None
-            return BinOpNode(Token(TT_MUL), NumberNode(Token(TT_INT, 1)), right) if token.type == TT_PLUS else BinOpNode(Token(TT_MUL), NumberNode(Token(TT_INT, -1)), right)
+            return BinOpNode(Token(TT_MUL), Node(Token(TT_INT, 1)), right) if token.type == TT_PLUS else BinOpNode(Token(TT_MUL), Node(Token(TT_INT, -1)), right)
         elif token.type == TT_LPAREN:
             lParenidx = self.idx
             self.advance()
@@ -255,32 +269,53 @@ class Parser:
         return res
 
 class Interpreter:
-    def __init__(self, tree: BinOpNode|NumberNode):
+    def __init__(self, tree: BinOpNode|Node):
         self.tree = tree
     
-    def visit(self, node: BinOpNode|NumberNode) -> int|float:
-        if isinstance(node, NumberNode):
+    def visit(self, node: BinOpNode|Node) -> int|float:
+        if isinstance(node, Node):
             return node.token
         elif isinstance(node, BinOpNode):
             if node.op.type == TT_PLUS:
                 val = self.visit(node.left_node).value + self.visit(node.right_node).value
+                if self.visit(node.left_node).type == TT_STR:
+                    if self.visit(node.right_node).type == TT_STR:
+                        return Token(TT_STR, self.visit(node.left_node).value + self.visit(node.right_node).value)
+                    else:
+                        raise Exception('Runtime Error: Cannot add string to a non-string')
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_MINUS:
                 val = self.visit(node.left_node).value - self.visit(node.right_node).value
+                if self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' - \' for strings')
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_MUL:
                 val = self.visit(node.left_node).value * self.visit(node.right_node).value
+                if self.visit(node.left_node).type == TT_STR:
+                    if self.visit(node.right_node).type == TT_INT:
+                        return Token(TT_STR, self.visit(node.left_node).value * self.visit(node.right_node).value)
+                    else:
+                        raise Exception('Runtime Error: Cannot multiply string with a non-integer')
+                elif self.visit(node.right_node).type == TT_STR:
+                    if self.visit(node.left_node).type == TT_INT:
+                        return Token(TT_STR, self.visit(node.left_node).value * self.visit(node.right_node).value)
+                    else:
+                        raise Exception('Runtime Error: Cannot multiply string with a non-integer')
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_DIV:
                 if self.visit(node.right_node).value == 0:
                     raise Exception('Runtime Error: Division by zero')
+                if self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' / \' for strings')
                 val = self.visit(node.left_node).value / self.visit(node.right_node).value
                 type = TT_INT if self.visit(node.left_node).typ ==  TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT
                 return Token(type, val)
             elif node.op.type == TT_POW:
+                if self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' ** \' for strings')
                 val = self.visit(node.left_node).value ** self.visit(node.right_node).value
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT and self.visit(node.right_node).value >= 0 else TT_FLOAT
                 return Token(type, val)

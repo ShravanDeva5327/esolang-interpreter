@@ -1,4 +1,4 @@
 expression: term ((PLUS|MINUS) term)*
 term: power ((MUL|DIV) power)*
 power: factor (POW factor)*
-factor: INT|FLOAT|(...)
+factor: INT|FLOAT|(expr)
