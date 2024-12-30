@@ -170,7 +170,7 @@ class ParserError:
         highlight = ''
         for i in range(len(tokens)):
             if i == idx:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'*len(tokens[i].to_str()) + ' '
                 elif tokens[i].type == TT_POW:
@@ -186,7 +186,7 @@ class ParserError:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'
             else:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
                     expr += f'{tokens[i].to_str()}'
                     highlight += ' '*(len(tokens[i].to_str()) + 1)
                 elif tokens[i].type == TT_POW:
