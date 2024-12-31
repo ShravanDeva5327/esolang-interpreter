@@ -2,6 +2,7 @@ import string
 
 LETTERS = string.ascii_letters
 DIGITS = '0123456789'
+BOOL_LIST = ('true', 'false')
 
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
@@ -19,7 +20,14 @@ TT_IDENTIFIER = 'IDENTIFIER'
 TT_KEYWORD = 'KEYWORD'
 TT_EQUALS = 'EQUALS'
 
-KEYWORDS = ['var']
+TT_ISEQ = 'ISEQ'
+TT_NOTEQ = 'NOTEQ'
+TT_LESSTHAN = 'LESSTHAN'
+TT_GREATERTHAN = 'GREATERTHAN'
+TT_LESSTHANEQ = 'LESSTHANEQ'
+TT_GREATERTHANEQ = 'GREATERTHANEQ'
+
+KEYWORDS = ['var', 'and' , 'or', 'not']
 
 class Token:
     def __init__(self, type_: str, value_ : str = None):
@@ -53,6 +61,18 @@ class Token:
             return f') '
         elif self.type == TT_EQUALS:
             return f'= '
+        elif self.type == TT_ISEQ:
+            return f'== '
+        elif self.type == TT_NOTEQ:
+            return f'!= '
+        elif self.type == TT_LESSTHAN:
+            return f'< '
+        elif self.type == TT_GREATERTHAN:
+            return f'> '
+        elif self.type == TT_LESSTHANEQ:
+            return f'<= '
+        elif self.type == TT_GREATERTHANEQ:
+            return f'>= '
         elif self.type == TT_STR:
             return f'{self.value} '
 
@@ -118,10 +138,10 @@ class Lexer:
                     str_ += self.current_char
                     self.advance()
                 
-                if str_ in ['true', 'false']:
+                if str_ in BOOL_LIST:
                     tokens.append(Token(TT_BOOL, str_))
                 else:
-                    tokens.append(Token(TT_KEYWORD, str_) if str_ in KEYWORDS else Token(TT_IDENTIFIER, str_))
+                    tokens.append(Token(TT_KEYWORD, str_.upper()) if str_ in KEYWORDS else Token(TT_IDENTIFIER, str_))
             elif self.current_char == '\'':
                 self.advance()
                 str_ = ''
@@ -155,9 +175,31 @@ class Lexer:
                 tokens.append(Token(TT_RPAREN))
                 self.advance()
             elif self.current_char == '=':
-                tokens.append(Token(TT_EQUALS))
                 self.advance()
-            
+                if self.current_char == '=':
+                    tokens.append(Token(TT_ISEQ))
+                    self.advance()
+                else: tokens.append(Token(TT_EQUALS))
+            elif self.current_char == '!':
+                self.advance()
+                if self.current_char == '=':
+                    tokens.append(Token(TT_NOTEQ))
+                    self.advance()
+                else:
+                    LexError(self.pos.copy(),'Invalid Character', f'"{self.current_char}"')
+                    return None
+            elif self.current_char == '<':
+                self.advance()
+                if self.current_char == '=':
+                    tokens.append(Token(TT_LESSTHANEQ))
+                    self.advance()
+                else: tokens.append(Token(TT_LESSTHAN))
+            elif self.current_char == '>':
+                self.advance()
+                if self.current_char == '=':
+                    tokens.append(Token(TT_GREATERTHANEQ))
+                    self.advance()
+                else: tokens.append(Token(TT_GREATERTHAN))
             else:
                 LexError(self.pos.copy(),'Invalid Character', f'"{self.current_char}"')
                 return None
@@ -174,7 +216,9 @@ class ParserError:
         highlight = ''
         for i in range(len(tokens)):
             if i == idx:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV,
+                                       TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS, TT_ISEQ, TT_NOTEQ, TT_LESSTHAN, TT_GREATERTHAN,
+                                       TT_LESSTHANEQ, TT_GREATERTHANEQ):
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'*len(tokens[i].to_str()) + ' '
                 elif tokens[i].type == TT_POW:
@@ -190,7 +234,9 @@ class ParserError:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'
             else:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV,
+                                       TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS, TT_ISEQ, TT_NOTEQ, TT_LESSTHAN, TT_GREATERTHAN,
+                                       TT_LESSTHANEQ, TT_GREATERTHANEQ):
                     expr += f'{tokens[i].to_str()}'
                     highlight += ' '*(len(tokens[i].to_str()) + 1)
                 elif tokens[i].type == TT_POW:
@@ -288,8 +334,15 @@ class Parser:
     def term(self) -> BinOpNode:
         res = self.bin_op(self.pow, (TT_MUL, TT_DIV))
         return res
+    def arith_expr(self) -> BinOpNode:
+        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+    def comp_expr(self) -> BinOpNode:
+        if self.current_token.__eq__(Token(TT_KEYWORD, 'NOT')):
+            self.advance()
+            return BinOpNode(Token(TT_ISEQ), Node(Token(TT_INT, 0)), self.comp_expr())
+        return self.bin_op(self.arith_expr, (TT_ISEQ, TT_NOTEQ, TT_LESSTHAN, TT_GREATERTHAN, TT_LESSTHANEQ, TT_GREATERTHANEQ))
     def expr(self) -> BinOpNode:
-        if self.current_token.__eq__(Token(TT_KEYWORD, 'var')):
+        if self.current_token.__eq__(Token(TT_KEYWORD, 'VAR')):
             self.advance()
             if self.current_token.type != TT_IDENTIFIER:
                 ParserError(self.tokens, self.idx, 'Syntax Error', f'Expected an identifier after var')
@@ -304,7 +357,7 @@ class Parser:
             expr_ = self.expr()
             return varAssignNode(var_name, expr_)
 
-        return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+        return self.and_or()
     
     
     def bin_op(self, func, ops: list[str]) -> BinOpNode:
@@ -317,6 +370,19 @@ class Parser:
                 return None
             self.advance()
             right = func()
+            if right == None:
+                ParserError(self.tokens, opidx, 'Syntax Error', f'Expected an expression after {op.to_str()}')
+                return None
+            left = BinOpNode(op, left, right)
+        return left
+    
+    def and_or(self) -> Node:
+        left = self.comp_expr()
+        while self.current_token.__eq__(Token(TT_KEYWORD, 'AND')) or self.current_token.__eq__(Token(TT_KEYWORD, 'OR')):
+            op = self.current_token
+            opidx = self.idx
+            self.advance()
+            right = self.comp_expr()
             if right == None:
                 ParserError(self.tokens, opidx, 'Syntax Error', f'Expected an expression after {op.to_str()}')
                 return None
@@ -405,6 +471,56 @@ class Interpreter:
                 val = self.visit(node.left_node).value ** self.visit(node.right_node).value
                 type = TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT and self.visit(node.right_node).value >= 0 else TT_FLOAT
                 return Token(type, val)
+            elif node.op.type == TT_ISEQ:
+                if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' == \' between string and non-string')
+                elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' == \' between non-string and string')
+                return Token(TT_INT, 1 if self.visit(node.left_node).value == self.visit(node.right_node).value else 0)
+            elif node.op.type == TT_NOTEQ:
+                if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' != \' between string and non-string')
+                elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' != \' between non-string and string')
+                return Token(TT_INT, 1 if self.visit(node.left_node).value != self.visit(node.right_node).value else 0)
+            elif node.op.type == TT_LESSTHAN:
+                if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' < \' between string and non-string')
+                elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' < \' between non-string and string')
+                return Token(TT_INT, 1 if self.visit(node.left_node).value < self.visit(node.right_node).value else 0)
+            elif node.op.type == TT_GREATERTHAN:
+                if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' > \' between string and non-string')
+                elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' > \' between non-string and string')
+                return Token(TT_INT, 1 if self.visit(node.left_node).value > self.visit(node.right_node).value else 0)
+            elif node.op.type == TT_LESSTHANEQ:
+                if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' <= \' between string and non-string')
+                elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' <= \' between non-string and string')
+                return Token(TT_INT, 1 if self.visit(node.left_node).value <= self.visit(node.right_node).value else 0)
+            elif node.op.type == TT_GREATERTHANEQ:
+                if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' >= \' between string and non-string')
+                elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
+                    raise Exception('Runtime Error: Invalid operator \' >= \' between non-string and string')
+                return Token(TT_INT, 1 if self.visit(node.left_node).value >= self.visit(node.right_node).value else 0)
+            elif node.op.type == TT_KEYWORD:
+                if node.op.value == 'AND':
+                    if self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR:
+                        raise Exception('Runtime Error: Invalid operator \' and \' for strings')
+                    return Token(TT_INT, 1 if self.visit(node.left_node).value and self.visit(node.right_node).value else 0)
+                elif node.op.value == 'OR':
+                    if self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR:
+                        raise Exception('Runtime Error: Invalid operator \' or \' for strings')
+                    return Token(TT_INT, 1 if self.visit(node.left_node).value or self.visit(node.right_node).value else 0)
+                elif node.op.value == 'NOT':
+                    if self.visit(node.right_node).type == TT_STR:
+                        raise Exception('Runtime Error: Invalid operator \' not \' for strings')
+                    return Token(TT_INT, 1 if 0 == self.visit(node.right_node).value else 0)
+        return None
         
     def interpret(self) -> Token:
         return self.visit(self.tree)

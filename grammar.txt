@@ -1,10 +1,13 @@
-                                          |
-expression  : var (EQUALS expression)?    |    
-            : term ((PLUS|MINUS) term)*   |
-term        : power ((MUL|DIV) power)*    |    order of priority       
-power       : factor (POW factor)*        |            
-factor      : INT|FLOAT|(expr)            |         
-                                          V
+                                                                        |
+expression  : var (EQUALS expression)?                                  |
+            : comp-expr ((AND|OR) comp-expr)*                           |
+comp-expr   : NOT comp-expr                                             |
+            : arith-expr ((ISE|NE|LT|GT|LTE|GTE) arit-expr)*            |   order of priority   
+arith-expr  : term ((PLUS|MINUS) term)*                                 |
+term        : power ((MUL|DIV) power)*                                  |         
+power       : factor (POW factor)*                                      |            
+factor      : INT|FLOAT|(expr)                                          |         
+                                                                        V
 
 
 
