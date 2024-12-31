@@ -6,6 +6,7 @@ DIGITS = '0123456789'
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
 TT_STR = 'STRING'
+TT_BOOL = 'BOOL'
 TT_PLUS = 'PLUS'
 TT_MINUS = 'MINUS'
 TT_MUL = 'MUL'
@@ -34,7 +35,7 @@ class Token:
         return self.type == other.type and self.value == other.value
     
     def to_str(self):
-        if self.type in (TT_INT, TT_FLOAT, TT_KEYWORD, TT_IDENTIFIER):
+        if self.type in (TT_INT, TT_FLOAT, TT_KEYWORD, TT_IDENTIFIER, TT_BOOL):
             return f'{self.value} '
         elif self.type == TT_PLUS:
             return f'+ '
@@ -117,7 +118,10 @@ class Lexer:
                     str_ += self.current_char
                     self.advance()
                 
-                tokens.append(Token(TT_KEYWORD, str_) if str_ in KEYWORDS else Token(TT_IDENTIFIER, str_))
+                if str_ in ['true', 'false']:
+                    tokens.append(Token(TT_BOOL, str_))
+                else:
+                    tokens.append(Token(TT_KEYWORD, str_) if str_ in KEYWORDS else Token(TT_IDENTIFIER, str_))
             elif self.current_char == '\'':
                 self.advance()
                 str_ = ''
@@ -170,7 +174,7 @@ class ParserError:
         highlight = ''
         for i in range(len(tokens)):
             if i == idx:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'*len(tokens[i].to_str()) + ' '
                 elif tokens[i].type == TT_POW:
@@ -186,7 +190,7 @@ class ParserError:
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'
             else:
-                if tokens[i].type in (TT_INT, TT_FLOAT, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_STR, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
+                if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS):
                     expr += f'{tokens[i].to_str()}'
                     highlight += ' '*(len(tokens[i].to_str()) + 1)
                 elif tokens[i].type == TT_POW:
@@ -253,8 +257,10 @@ class Parser:
         if self.idx >= len(self.tokens):
             return None
         token = self.current_token
-        if token.type in (TT_INT, TT_FLOAT, TT_STR):
+        if token.type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL):
             self.advance()
+            if token.type == TT_BOOL:
+                return Node(Token(TT_INT, 1)) if token.value == 'true' else Node(Token(TT_INT, 0))
             return Node(token)
         elif token.type == TT_IDENTIFIER:
             self.advance()
