@@ -2,7 +2,8 @@ import string
 
 LETTERS = string.ascii_letters
 DIGITS = '0123456789'
-BOOL_LIST = ('true', 'false')
+NUMERALS = '.0123456789'
+BOOL_VAR = ('true', 'false')
 
 TT_INT = 'INT'
 TT_FLOAT = 'FLOAT'
@@ -16,21 +17,33 @@ TT_POW = 'POW'
 TT_LPAREN = 'LPAREN'
 TT_RPAREN = 'RPAREN'
 
+DATA_TYPES = (TT_INT, TT_FLOAT, TT_STR, TT_BOOL)
+ARITH_OP = (TT_PLUS, TT_MINUS, TT_MUL, TT_DIV, TT_POW)
+PAREN = (TT_LPAREN, TT_RPAREN)
+
 TT_IDENTIFIER = 'IDENTIFIER'
 TT_KEYWORD = 'KEYWORD'
 TT_EQUALS = 'EQUALS'
 
 TT_ISEQ = 'ISEQ'
 TT_NOTEQ = 'NOTEQ'
-TT_LESSTHAN = 'LESSTHAN'
-TT_GREATERTHAN = 'GREATERTHAN'
-TT_LESSTHANEQ = 'LESSTHANEQ'
-TT_GREATERTHANEQ = 'GREATERTHANEQ'
+TT_LT = 'LT'
+TT_GT = 'GT'
+TT_LTE = 'LTE'
+TT_GTE = 'GTE'
+
+COMPARATORS = (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE)
 
 KEYWORDS = ['var', 'and' , 'or', 'not']
 
+def line_in_text(text: str, line: int) -> str:
+    lines = text.split('\n')
+    return lines[line - 1] if line - 1 < len(lines) else ''
+
 class Token:
-    def __init__(self, type_: str, value_ : str = None):
+    def __init__(self, line: int, start_col:int, type_: str, value_ : str = None):
+        self.line = line
+        self.start_col = start_col
         self.type = type_
         self.value = value_
     
@@ -42,70 +55,34 @@ class Token:
     def __eq__(self, other: 'Token') -> bool:
         return self.type == other.type and self.value == other.value
     
-    def to_str(self):
-        if self.type in (TT_INT, TT_FLOAT, TT_KEYWORD, TT_IDENTIFIER, TT_BOOL):
-            return f'{self.value} '
-        elif self.type == TT_PLUS:
-            return f'+ '
-        elif self.type == TT_MINUS:
-            return f'- '
-        elif self.type == TT_MUL:
-            return f'* '
-        elif self.type == TT_DIV:
-            return f'/ '
-        elif self.type == TT_POW:
-            return f'** '
-        elif self.type == TT_LPAREN:
-            return f'('
-        elif self.type == TT_RPAREN:
-            return f') '
-        elif self.type == TT_EQUALS:
-            return f'= '
-        elif self.type == TT_ISEQ:
-            return f'== '
-        elif self.type == TT_NOTEQ:
-            return f'!= '
-        elif self.type == TT_LESSTHAN:
-            return f'< '
-        elif self.type == TT_GREATERTHAN:
-            return f'> '
-        elif self.type == TT_LESSTHANEQ:
-            return f'<= '
-        elif self.type == TT_GREATERTHANEQ:
-            return f'>= '
-        elif self.type == TT_STR:
-            return f'{self.value} '
-
 class Position:
-    def __init__(self, idx: int, ln: int, col: int, filename: str, filetxt: str):
-        self.idx = idx
+    def __init__(self, ln: int, col: int, idx: int):
         self.ln =ln   
         self.col = col
-        self.filename = filename
-        self.filetxt =filetxt
+        self.idx = idx
 
-    def advance(self, current_char) -> None:
-        self.idx += 1
+    def advance(self, current_char: str) -> None:
         self.col += 1
+        self.idx += 1
         if current_char == '\n':
-            self.col = 0
+            self.col = 1
             self.ln += 1
-        
 
     def copy(self) -> 'Position':
-        return Position(self.idx, self.ln, self.col, self.filename, self.filetxt)
+        return Position(self.ln, self.col)
     
 class LexError():
-    def __init__(self, pos: Position, error_name: str, details: str):
-        message = f'{error_name}: {details}\nFile {pos.filename}, line {pos.ln}, column {pos.col}'
+    def __init__(self, text:str, error_name: str, details: str, line: int, start_col: int):
+        error_line = line_in_text(text, line) + '\n'
+        wiggle = ' '*(start_col - 1) + '^' + '\n'
+        message = f'{error_line}{wiggle}{error_name}: {details}\nline {line}, column {start_col}'
         raise Exception(message)
   
 
 class Lexer:
-    def __init__(self, filename, text):
-        self.filename = filename
+    def __init__(self, text: str):
         self.text = text
-        self.pos = Position(-1, 1, 0, filename, text)
+        self.pos = Position(1, 0, -1)
         self.current_char = None
         self.advance()
     
@@ -113,35 +90,34 @@ class Lexer:
         self.pos.advance(self.current_char)
         self.current_char = self.text[self.pos.idx] if self.pos.idx < len(self.text) else None
 
-    
-        
+
     def tokenize(self):
         tokens = []
         while self.current_char != None:
             if self.current_char in " \t":
                 self.advance()
                 continue
-            elif self.current_char in DIGITS  + '.':
+            elif self.current_char in NUMERALS:
                 num_str = ''
-                while self.current_char != None and self.current_char in DIGITS + '.':
+                while self.current_char != None and self.current_char in NUMERALS:
                     num_str += self.current_char
                     if self.current_char == '.' and num_str.count('.') > 1:
-                        LexError(self.pos.copy(),'Invalid Number', f'{num_str}')
+                        LexError(self.text, 'Syntax Error', 'Invalid Syntax', self.pos.ln, self.pos.col)
                         return None
                     self.advance()
 
-                if num_str.count('.') == 0: tokens.append(Token(TT_INT, int(num_str)))
-                elif num_str.count('.') == 1: tokens.append(Token(TT_FLOAT, float(num_str)))
+                if num_str.count('.') == 0: tokens.append(Token(self.pos.ln, self.pos.col, TT_INT, int(num_str)))
+                elif num_str.count('.') == 1: tokens.append(Token(self.pos.ln, self.pos.col, TT_FLOAT, float(num_str)))
             elif self.current_char in LETTERS:
                 str_ = ''
                 while self.current_char != None and self.current_char in LETTERS + DIGITS:
                     str_ += self.current_char
                     self.advance()
                 
-                if str_ in BOOL_LIST:
-                    tokens.append(Token(TT_BOOL, str_))
+                if str_ in BOOL_VAR:
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_BOOL, str_))
                 else:
-                    tokens.append(Token(TT_KEYWORD, str_.upper()) if str_ in KEYWORDS else Token(TT_IDENTIFIER, str_))
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_KEYWORD, str_.upper()) if str_ in KEYWORDS else Token(self.pos.ln, self.pos.col, TT_IDENTIFIER, str_))
             elif self.current_char == '\'':
                 self.advance()
                 str_ = ''
@@ -149,59 +125,59 @@ class Lexer:
                     str_ += self.current_char
                     self.advance()
                 if self.current_char == None:
-                    LexError(self.pos.copy(),'Invalid String', f'\'{str_}')
+                    LexError(self.text, 'Syntax Error', 'Invalid String', self.pos.ln, self.pos.col)
                     return None
                 self.advance()
-                tokens.append(Token(TT_STR, str_))
+                tokens.append(Token(self.pos.ln, self.pos.col, TT_STR, str_))
             elif self.current_char == '+':
-                tokens.append(Token(TT_PLUS))
+                tokens.append(Token(self.pos.ln, self.pos.col, TT_PLUS))
                 self.advance()
             elif self.current_char == '-':
-                tokens.append(Token(TT_MINUS))
+                tokens.append(Token(self.pos.ln, self.pos.col, TT_MINUS))
                 self.advance()
             elif self.current_char == '*':
                 self.advance()
                 if self.current_char == '*':
-                    tokens.append(Token(TT_POW))
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_POW))
                     self.advance()
-                else: tokens.append(Token(TT_MUL))
+                else: tokens.append(Token(self.pos.ln, self.pos.col, TT_MUL))
             elif self.current_char == '/':
-                tokens.append(Token(TT_DIV))
+                tokens.append(Token(self.pos.ln, self.pos.col, TT_DIV))
                 self.advance()
             elif self.current_char == '(':
-                tokens.append(Token(TT_LPAREN))
+                tokens.append(Token(self.pos.ln, self.pos.col, TT_LPAREN))
                 self.advance()
             elif self.current_char == ')':
-                tokens.append(Token(TT_RPAREN))
+                tokens.append(Token(self.pos.ln, self.pos.col, TT_RPAREN))
                 self.advance()
             elif self.current_char == '=':
                 self.advance()
                 if self.current_char == '=':
-                    tokens.append(Token(TT_ISEQ))
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_ISEQ))
                     self.advance()
-                else: tokens.append(Token(TT_EQUALS))
+                else: tokens.append(Token(self.pos.ln, self.pos.col, TT_EQUALS))
             elif self.current_char == '!':
                 self.advance()
                 if self.current_char == '=':
-                    tokens.append(Token(TT_NOTEQ))
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_NOTEQ))
                     self.advance()
                 else:
-                    LexError(self.pos.copy(),'Invalid Character', f'"{self.current_char}"')
+                    LexError(self.text, 'Syntax Error', 'Invalid Syntax', self.pos.ln, self.pos.col-1)
                     return None
             elif self.current_char == '<':
                 self.advance()
                 if self.current_char == '=':
-                    tokens.append(Token(TT_LESSTHANEQ))
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_LTE))
                     self.advance()
-                else: tokens.append(Token(TT_LESSTHAN))
+                else: tokens.append(Token(self.pos.ln, self.pos.col, TT_LT))
             elif self.current_char == '>':
                 self.advance()
                 if self.current_char == '=':
-                    tokens.append(Token(TT_GREATERTHANEQ))
+                    tokens.append(Token(self.pos.ln, self.pos.col, TT_GTE))
                     self.advance()
-                else: tokens.append(Token(TT_GREATERTHAN))
+                else: tokens.append(Token(self.pos.ln, self.pos.col, TT_GT))
             else:
-                LexError(self.pos.copy(),'Invalid Character', f'"{self.current_char}"')
+                LexError(self.text, 'Syntax Error', 'Invalid Syntax', self.pos.ln, self.pos.col)
                 return None
         for i in range(len(tokens) - 1):
             if tokens[i].type == TT_INT and tokens[i + 1].type == TT_LPAREN:
@@ -217,8 +193,8 @@ class ParserError:
         for i in range(len(tokens)):
             if i == idx:
                 if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV,
-                                       TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS, TT_ISEQ, TT_NOTEQ, TT_LESSTHAN, TT_GREATERTHAN,
-                                       TT_LESSTHANEQ, TT_GREATERTHANEQ):
+                                       TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS, TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT,
+                                       TT_LTE, TT_GTE):
                     expr += f'{tokens[i].to_str()}'
                     highlight += '^'*len(tokens[i].to_str()) + ' '
                 elif tokens[i].type == TT_POW:
@@ -235,8 +211,8 @@ class ParserError:
                     highlight += '^'
             else:
                 if tokens[i].type in (TT_INT, TT_FLOAT, TT_STR, TT_BOOL, TT_PLUS, TT_MINUS, TT_MUL, TT_DIV,
-                                       TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS, TT_ISEQ, TT_NOTEQ, TT_LESSTHAN, TT_GREATERTHAN,
-                                       TT_LESSTHANEQ, TT_GREATERTHANEQ):
+                                       TT_IDENTIFIER, TT_KEYWORD, TT_EQUALS, TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT,
+                                       TT_LTE, TT_GTE):
                     expr += f'{tokens[i].to_str()}'
                     highlight += ' '*(len(tokens[i].to_str()) + 1)
                 elif tokens[i].type == TT_POW:
@@ -340,7 +316,7 @@ class Parser:
         if self.current_token.__eq__(Token(TT_KEYWORD, 'NOT')):
             self.advance()
             return BinOpNode(Token(TT_ISEQ), Node(Token(TT_INT, 0)), self.comp_expr())
-        return self.bin_op(self.arith_expr, (TT_ISEQ, TT_NOTEQ, TT_LESSTHAN, TT_GREATERTHAN, TT_LESSTHANEQ, TT_GREATERTHANEQ))
+        return self.bin_op(self.arith_expr, (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE))
     def expr(self) -> BinOpNode:
         if self.current_token.__eq__(Token(TT_KEYWORD, 'VAR')):
             self.advance()
@@ -483,25 +459,25 @@ class Interpreter:
                 elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' != \' between non-string and string')
                 return Token(TT_INT, 1 if self.visit(node.left_node).value != self.visit(node.right_node).value else 0)
-            elif node.op.type == TT_LESSTHAN:
+            elif node.op.type == TT_LT:
                 if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' < \' between string and non-string')
                 elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' < \' between non-string and string')
                 return Token(TT_INT, 1 if self.visit(node.left_node).value < self.visit(node.right_node).value else 0)
-            elif node.op.type == TT_GREATERTHAN:
+            elif node.op.type == TT_GT:
                 if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' > \' between string and non-string')
                 elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' > \' between non-string and string')
                 return Token(TT_INT, 1 if self.visit(node.left_node).value > self.visit(node.right_node).value else 0)
-            elif node.op.type == TT_LESSTHANEQ:
+            elif node.op.type == TT_LTE:
                 if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' <= \' between string and non-string')
                 elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' <= \' between non-string and string')
                 return Token(TT_INT, 1 if self.visit(node.left_node).value <= self.visit(node.right_node).value else 0)
-            elif node.op.type == TT_GREATERTHANEQ:
+            elif node.op.type == TT_GTE:
                 if self.visit(node.left_node).type == TT_STR and self.visit(node.right_node).type != TT_STR:
                     raise Exception('Runtime Error: Invalid operator \' >= \' between string and non-string')
                 elif self.visit(node.left_node).type != TT_STR and self.visit(node.right_node).type == TT_STR:

@@ -6,7 +6,7 @@ while True:
         text = input(">>> ")
 
         # Generate tokens
-        lexer_ = Lexer('<stdin>', text)
+        lexer_ = Lexer(text)
         tokens = lexer_.tokenize()
 
         if tokens is not None:
