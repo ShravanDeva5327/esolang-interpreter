@@ -275,7 +275,7 @@ class Parser:
                 self.advance()
                 return result
             else:
-                PrintError(self.text, "Syntax Error", "Expected a ')'", token.line, token.start_col)
+                PrintError(self.text, "Syntax Error", "'(' Never closed", token.line, token.start_col)
                 return None
 
     def pow(self) -> BinOpNode:
@@ -290,8 +290,14 @@ class Parser:
 
     def comp_expr(self) -> BinOpNode:
         if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="NOT")):
+            ln = self.current_token.line
+            col = self.current_token.start_col
             self.advance()
-            return BinOpNode(Token(type_=TT_ISEQ), Node(Token(type_=TT_INT, value_=0)), self.comp_expr())
+            right = self.comp_expr()
+            if right == None:
+                PrintError(self.text, "Syntax Error", "Expected an expression after 'not'", ln, col)
+                return None
+            return BinOpNode(Token(type_=TT_ISEQ), Node(Token(type_=TT_INT, value_=0)), right)
         return self.bin_op(self.arith_expr, COMPARATORS)
 
     def expr(self) -> BinOpNode:
@@ -420,7 +426,7 @@ class Interpreter:
                 if (self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR):
                     PrintError(self.text, "Runtime Error", "Invalid operator ' / ' for strings", node.op.line, node.op.start_col)
                 val = (self.visit(node.left_node).value / self.visit(node.right_node).value)
-                type = (TT_INT if self.visit(node.left_node).type == TT_INT and self.visit(node.right_node).type == TT_INT else TT_FLOAT)
+                type = (TT_FLOAT)
                 return Token(type_=type, value_=val)
             elif node.op.type == TT_POW:
                 if (self.visit(node.left_node).type == TT_STR or self.visit(node.right_node).type == TT_STR):

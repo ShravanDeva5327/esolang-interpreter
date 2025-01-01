@@ -10,13 +10,13 @@ while True:
         tokens = lexer_.tokenize()
 
         if tokens is not None:
-            print(tokens)
+            # print(tokens)
 
             # Generate AST
             parser_ = Parser(text, tokens)
             ast = parser_.parse()
             if ast is not None:
-                print(ast)
+                # print(ast)
 
                 interpreter_ = Interpreter(text, ast, variables)
                 result = interpreter_.interpret()
