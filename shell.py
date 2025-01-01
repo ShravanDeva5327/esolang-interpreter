@@ -13,15 +13,15 @@ while True:
             print(tokens)
 
             # Generate AST
-            parser_ = Parser(tokens)
+            parser_ = Parser(text, tokens)
             ast = parser_.parse()
             if ast is not None:
                 print(ast)
 
-                interpreter_ = Interpreter(ast, variables)
+                interpreter_ = Interpreter(text, ast, variables)
                 result = interpreter_.interpret()
                 if result.value is not None:
-                    print(result)
+                    print(f'{result.value}: {result.type}')
     
     except EOFError:
         print("")
