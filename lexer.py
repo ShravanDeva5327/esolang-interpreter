@@ -35,8 +35,7 @@ TT_GTE = "GTE"
 
 COMPARATORS = (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE)
 
-KEYWORDS = ["var", "and", "or", "not"]
-
+KEYWORDS = ["and", "or", "not"]
 
 def line_in_text(text: str, line: int) -> str:
     lines = text.split("\n")
@@ -247,6 +246,14 @@ class Parser:
         else:
             self.current_token = Token(None)
         return self.current_token
+    
+    def move_back(self) -> Token:
+        self.idx -= 1
+        if self.idx >= 0:
+            self.current_token = self.tokens[self.idx]
+        else:
+            self.current_token = Token(None)
+        return self.current_token
 
     def factor(self) -> Node:
         if self.idx >= len(self.tokens):
@@ -301,20 +308,20 @@ class Parser:
         return self.bin_op(self.arith_expr, COMPARATORS)
 
     def expr(self) -> BinOpNode:
-        if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="VAR")):
-            self.advance()
-            if self.current_token.type != TT_IDENTIFIER:
-                PrintError(self.text, "Syntax Error", "Expected a variable name after 'var'", self.current_token.line, self.current_token.start_col)
-                return None
+        if self.current_token.type == TT_IDENTIFIER:
             var_name = self.current_token
             self.advance()
-            if self.current_token.type != TT_EQUALS:
-                PrintError(self.text, "Syntax Error", "Expected an '=' after variable name", self.current_token.line, self.current_token.start_col)
-                return None
-            self.advance()
-
-            expr_ = self.expr()
-            return varAssignNode(var_name, expr_)
+            if self.current_token.type == TT_EQUALS:
+                ln = self.current_token.line
+                col = self.current_token.start_col
+                self.advance()
+                value = self.expr()
+                if value == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after assignment", ln, col)
+                    return None
+                return varAssignNode(var_name, value)
+            else:
+                self.move_back()
 
         return self.and_or()
 
@@ -388,11 +395,7 @@ class Interpreter:
             value = self.variable_table.get(node.var_name.value)
             if value is None:
                 PrintError(self.text, "Runtime Error", f"Variable {node.var_name.value} is not defined", node.var_name.line, node.var_name.start_col)
-            return (
-                Token(type_=TT_INT, value_=value)
-                if isinstance(value, int)
-                else (Token(type_=TT_FLOAT, value_=value) if isinstance(value, float) else Token(type_=TT_STR, value_=value))
-            )
+            return (Token(type_=TT_INT, value_=value) if isinstance(value, int) else (Token(type_=TT_FLOAT, value_=value) if isinstance(value, float) else Token(type_=TT_STR, value_=value)))
         elif isinstance(node, BinOpNode):
             if node.op.type == TT_PLUS:
                 if ((self.visit(node.left_node).type == TT_STR) ^ (self.visit(node.right_node).type == TT_STR)):
