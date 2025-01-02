@@ -16,6 +16,7 @@ TT_DIV = "DIV"
 TT_POW = "POW"
 TT_LPAREN = "LPAREN"
 TT_RPAREN = "RPAREN"
+TT_COMMA = "COMMA"
 
 DATA_TYPES = (TT_INT, TT_FLOAT, TT_STR, TT_BOOL)
 NUM_DATA_TYPES = (TT_INT, TT_FLOAT)
@@ -35,7 +36,7 @@ TT_GTE = "GTE"
 
 COMPARATORS = (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE)
 
-KEYWORDS = ["and", "or", "not"]
+KEYWORDS = ["and", "or", "not", "print", "true", "false"]
 
 def line_in_text(text: str, line: int) -> str:
     lines = text.split("\n")
@@ -157,6 +158,9 @@ class Lexer:
             elif self.current_char == ")":
                 tokens.append(Token(ln, col, TT_RPAREN))
                 self.advance()
+            elif self.current_char == ",":
+                tokens.append(Token(ln, col, TT_COMMA))
+                self.advance()
             elif self.current_char == "=":
                 self.advance()
                 if self.current_char == "=":
@@ -220,7 +224,7 @@ class varAccessNode:
 
     def __repr__(self) -> str:
         return f"{{access {self.var_name.value}}}"
-
+    
 
 class BinOpNode:
     def __init__(self, op: Token, left_node: Node, right_node: Node):
@@ -230,6 +234,12 @@ class BinOpNode:
 
     def __repr__(self) -> str:
         return f"{{{self.left_node} {self.op} {self.right_node}}}"
+class printNode:
+    def __init__(self, tokens: list[Node|varAccessNode|varAssignNode|BinOpNode]):
+        self.tokens = tokens
+    
+    def __repr__(self) -> str:
+        return f"{{print {self.tokens}}}"
 
 
 class Parser:
@@ -308,6 +318,31 @@ class Parser:
         return self.bin_op(self.arith_expr, COMPARATORS)
 
     def expr(self) -> BinOpNode:
+        if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="PRINT")):
+            pr_ln = self.current_token.line
+            pr_col = self.current_token.start_col
+            self.advance()
+            if self.current_token.type == TT_LPAREN:
+                lparen_ln = self.current_token.line
+                lparen_col = self.current_token.start_col
+                self.advance()
+                tokens = []
+                while self.current_token.type != TT_RPAREN:
+                    tokens.append(self.expr())
+                    if self.current_token.type != TT_RPAREN:
+                        if self.current_token.type == TT_COMMA:
+                            self.advance()
+                        else:
+                            PrintError(self.text, "Syntax Error", "Expected ',' after expression", lparen_ln, lparen_col)
+                    elif self.current_token.type == TT_RPAREN:
+                        self.advance()
+                        return printNode(tokens)
+                    else:
+                        PrintError(self.text, "Syntax Error", "'(' Never closed", lparen_ln, lparen_col)
+            else:
+                PrintError(self.text, "Syntax Error", "Expected '(' after 'print'", pr_ln, pr_col)
+                return None
+        
         if self.current_token.type == TT_IDENTIFIER:
             var_name = self.current_token
             self.advance()
@@ -388,9 +423,14 @@ class Interpreter:
     def visit(self, node: BinOpNode | Node | varAccessNode | varAssignNode) -> Token:
         if isinstance(node, Node):
             return node.token
+        elif isinstance(node, printNode):
+            for token in node.tokens:
+                print(self.visit(token).value, end="")
+            print()
+            return Token()
         elif isinstance(node, varAssignNode):
             self.variable_table.set(node.var_name.value, self.visit(node.value).value)
-            return Token(type_=self.visit(node.value).type, value_=self.visit(node.value).value)
+            return Token()
         elif isinstance(node, varAccessNode):
             value = self.variable_table.get(node.var_name.value)
             if value is None:
