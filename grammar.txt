@@ -7,10 +7,11 @@ comp-expr   : NOT comp-expr                                             |
 arith-expr  : term ((PLUS|MINUS) term)*                                 |
 term        : power ((MUL|DIV) power)*                                  |         
 power       : factor (POW factor)*                                      |            
-factor      : INT|FLOAT|(expr)                                          |         
+factor      : INT|FLOAT|(expr)|identifier                               |
+            : if-expr                                                   |         
                                                                         V
 
-
+if-expr     : if expr then expr (elif expr then expr)* (else expr)? end
 
 # Variables
 

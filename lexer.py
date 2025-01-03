@@ -36,7 +36,8 @@ TT_GTE = "GTE"
 
 COMPARATORS = (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE)
 
-KEYWORDS = ["and", "or", "not", "print", "true", "false"]
+KEYWORDS = ["and", "or", "not", "print", "true", "false",
+            "if", "then", "elif", "else"]
 
 def line_in_text(text: str, line: int) -> str:
     lines = text.split("\n")
@@ -120,15 +121,15 @@ class Lexer:
                 while (self.current_char != None and self.current_char in LETTERS + DIGITS):
                     str_ += self.current_char
                     self.advance()
-
                 if str_ in BOOL_VAR:
                     tokens.append(Token(ln, col, TT_BOOL, str_))
                 else:
                     tokens.append(Token(ln, col, TT_KEYWORD, str_.upper()) if str_ in KEYWORDS else Token(ln, col, TT_IDENTIFIER, str_))
-            elif self.current_char == "'":
+            elif self.current_char in "'\"":
+                start_quote = self.current_char
                 self.advance()
                 str_ = ""
-                while self.current_char != None and self.current_char != "'":
+                while self.current_char != None and self.current_char != start_quote:
                     str_ += self.current_char
                     self.advance()
                 if self.current_char == None:
@@ -240,6 +241,21 @@ class printNode:
     
     def __repr__(self) -> str:
         return f"{{print {self.tokens}}}"
+    
+class ifNode:
+    def __init__(self, cases: list[tuple[Node, Node]], else_case: Node):
+        self.cases = cases
+        self.else_case = else_case
+
+    def __repr__(self) -> str:
+        string = ""
+        for i in range(len(self.cases)):
+            string += f"if {self.cases[i][0]} then {self.cases[i][1]}\n" if i == 0 else f"elif {self.cases[i][0]} then {self.cases[i][1]}\n"
+        if self.else_case != None:
+            string += f"else {self.else_case}"
+        
+        return f"{string}"
+            
 
 
 class Parser:
@@ -281,7 +297,7 @@ class Parser:
             self.advance()
             right = self.factor()
             if right == None:
-                PrintError(self.text, "Invalid Syntax", "Expected an expression after operator", token.line, token.start_col)
+                PrintError(self.text, "Syntax Error", "Expected an expression after operator", token.line, token.start_col + 1)
                 return None
             return (BinOpNode(Token(type_=TT_MUL), Node(Token(type_=TT_INT, value_=1)), right) if token.type == TT_PLUS else BinOpNode(Token(type_=TT_MUL), Node(Token(type_=TT_INT, value_=-1)), right))
         elif token.type == TT_LPAREN:
@@ -294,6 +310,49 @@ class Parser:
             else:
                 PrintError(self.text, "Syntax Error", "'(' Never closed", token.line, token.start_col)
                 return None
+        elif token.type == TT_KEYWORD:
+            if token.value == "IF":
+                cases = []
+                else_case = None
+                self.advance()
+                condition = self.expr()
+                if condition == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'if'", token.line, token.start_col)
+                    return None
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="THEN")):
+                    PrintError(self.text, "Syntax Error", "Expected 'then' after condition", self.current_token.line, self.current_token.start_col)
+                    return None
+                self.advance()
+                then = self.expr()
+                if then == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'then'", self.current_token.line, self.current_token.start_col)
+                    return None
+                cases.append((condition, then))
+                while self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="ELIF")):
+                    self.advance()
+                    condition = self.expr()
+                    if condition == None:
+                        PrintError(self.text, "Syntax Error", "Expected an expression after 'elif'", self.current_token.line, self.current_token.start_col)
+                        return None
+                    if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="THEN")):
+                        if not self.current_token == None:
+                            PrintError(self.text, "Syntax Error", "Expected 'then' after condition", self.current_token.line, self.current_token.start_col)
+                        else:
+                            PrintError(self.text, "Syntax Error", "Expected 'then' after condition", token.line, token.start_col)                    
+                    self.advance()
+                    then = self.expr()
+                    if then == None:
+                        PrintError(self.text, "Syntax Error", "Expected an expression after 'then'", self.current_token.line, self.current_token.start_col)
+                        return None
+                    cases.append((condition, then))
+                if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="ELSE")):
+                    self.advance()
+                    else_case = self.expr()
+                    if else_case == None:
+                        PrintError(self.text, "Syntax Error", "Expected an expression after 'else'", self.current_token.line, self.current_token.start_col)
+                        return None
+                
+                return ifNode(cases, else_case)
 
     def pow(self) -> BinOpNode:
         return self.bin_op(self.factor, (TT_POW,))
@@ -366,12 +425,12 @@ class Parser:
             op = self.current_token
             opidx = self.idx
             if left == None:
-                PrintError(self.text, "Syntax Error", "Expected an expression before operator", op.line, op.start_col)
+                PrintError(self.text, "Syntax Error", "Expected an expression before operator", op.line, op.start_col - 1)
                 return None
             self.advance()
             right = func()
             if right == None:
-                PrintError(self.text, "Syntax Error", "Expected an expression after operator", opidx, op.start_col)
+                PrintError(self.text, "Syntax Error", "Expected an expression after operator", op.line, op.start_col + 1)
             left = BinOpNode(op, left, right)
         return left
 
@@ -386,7 +445,7 @@ class Parser:
             self.advance()
             right = self.comp_expr()
             if right == None:
-                PrintError(self.text, "Syntax Error", "Expected an expression after operator", opidx, op.start_col)
+                PrintError(self.text, "Syntax Error", "Expected an expression after operator", op.line, op.start_col)
                 return None
             left = BinOpNode(op, left, right)
         return left
@@ -423,6 +482,15 @@ class Interpreter:
     def visit(self, node: BinOpNode | Node | varAccessNode | varAssignNode) -> Token:
         if isinstance(node, Node):
             return node.token
+        elif isinstance(node, ifNode):
+            for case in node.cases:
+                if self.visit(case[0]).__eq__(Token()):
+                    PrintError(self.text, "Runtime Error", "Expected an expression after 'if'", 1, 1)
+                if self.visit(case[0]).value:
+                    return self.visit(case[1])
+            if node.else_case != None:
+                return self.visit(node.else_case)
+            return Token()
         elif isinstance(node, printNode):
             for token in node.tokens:
                 print(self.visit(token).value, end="")
