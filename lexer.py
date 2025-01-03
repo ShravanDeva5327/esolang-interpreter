@@ -116,9 +116,9 @@ class Lexer:
                     tokens.append(Token(self.pos.ln, self.pos.col, TT_INT, int(num_str)))
                 elif num_str.count(".") == 1: 
                     tokens.append(Token(self.pos.ln, self.pos.col, TT_FLOAT, float(num_str)))
-            elif self.current_char in LETTERS:
+            elif self.current_char in LETTERS + '_':
                 str_ = ""
-                while (self.current_char != None and self.current_char in LETTERS + DIGITS):
+                while (self.current_char != None and self.current_char in LETTERS + DIGITS + '_'):
                     str_ += self.current_char
                     self.advance()
                 if str_ in BOOL_VAR:
@@ -172,7 +172,7 @@ class Lexer:
             elif self.current_char == "!":
                 self.advance()
                 if self.current_char == "=":
-                    tokens.append(Token(col, TT_NOTEQ))
+                    tokens.append(Token(ln,col, TT_NOTEQ))
                     self.advance()
                 else:
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", ln, col - 1)
