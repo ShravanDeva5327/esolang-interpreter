@@ -29,5 +29,5 @@ while True:
     except KeyboardInterrupt:
         print("")
         continue
-    except Exception as e:
-        print(e)
+    # except Exception as e:
+    #     print(e)

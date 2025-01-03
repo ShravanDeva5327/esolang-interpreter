@@ -8,10 +8,12 @@ arith-expr  : term ((PLUS|MINUS) term)*                                 |
 term        : power ((MUL|DIV) power)*                                  |         
 power       : factor (POW factor)*                                      |            
 factor      : INT|FLOAT|(expr)|identifier                               |
-            : if-expr                                                   |         
+            : if-expr|for-expr|while-expr                               |         
                                                                         V
 
 if-expr     : if expr then expr (elif expr then expr)* (else expr)? end
+for-expr    : for identifier EQUALS expr to expr (step expr)? do expr
+while-expr  : while expr do expr
 
 # Variables
 

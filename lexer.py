@@ -37,7 +37,7 @@ TT_GTE = "GTE"
 COMPARATORS = (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE)
 
 KEYWORDS = ["and", "or", "not", "print", "true", "false",
-            "if", "then", "elif", "else"]
+            "if", "then", "elif", "else","for", "to", "step", "while", "do"]
 
 def line_in_text(text: str, line: int) -> str:
     lines = text.split("\n")
@@ -256,7 +256,24 @@ class ifNode:
         
         return f"{string}"
             
+class forNode:
+    def __init__(self, identifier: Token, start: Node, end: Node, step: Node, body: Node):
+        self.identifier = identifier
+        self.start = start
+        self.end = end
+        self.step = step
+        self.body = body
+    
+    def __repr__(self) -> str:
+        return f"for {self.start} to {self.end} step {self.step} do {self.body}"
+    
+class WhileNode:
+    def __init__(self, condition: Node, body: Node):
+        self.condition = condition
+        self.body = body
 
+    def __repr__(self) -> str:
+        return f"while {self.condition} do {self.body}"
 
 class Parser:
     def __init__(self, text: str, tokens: list[Token]):
@@ -353,6 +370,81 @@ class Parser:
                         return None
                 
                 return ifNode(cases, else_case)
+            elif token.value == "FOR":
+                self.advance()
+                if self.current_token.type != TT_IDENTIFIER:
+                    PrintError(self.text, "Syntax Error", "Expected an identifier after 'for'", token.line, token.start_col)
+                var = self.current_token
+                self.advance()
+                if self.current_token.type != TT_EQUALS:
+                    PrintError(self.text, "Syntax Error", "Expected '=' after identifier", self.current_token.line, self.current_token.start_col)
+                self.advance()
+                start_ = self.expr()
+                if start_ == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after identifier", var.line, var.start_col)
+                
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="TO")):
+                    PrintError(self.text, "Syntax Error", "Invalid Syntax", token.line, token.start_col + 1)
+                self.advance()
+
+                end_ = self.expr()
+                if end_ == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'to'", self.current_token.line, self.current_token.start_col)
+                
+                step_ = Node(Token(type_=TT_INT, value_=1))
+                if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="STEP")):
+                    self.advance()
+                    step_ = self.expr()
+                    if step_ == None:
+                        PrintError(self.text, "Syntax Error", "Expected an expression after 'step'", self.current_token.line, self.current_token.start_col)
+                
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="DO")):
+                    PrintError(self.text, "Syntax Error", "Expected 'do' after step", self.current_token.line, self.current_token.start_col)
+                self.advance()
+                body = self.expr()
+                if body == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'do'", self.current_token.line, self.current_token.start_col)
+                
+                return forNode(var, start_, end_, step_, body)
+
+            elif token.value == "WHILE":    
+                self.advance()
+                condition = self.expr()
+                if condition == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'while'", token.line, token.start_col)
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="DO")):
+                    PrintError(self.text, "Syntax Error", "Expected 'do' after condition", self.current_token.line, self.current_token.start_col)
+                self.advance()
+                body = self.expr()
+                if body == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'do'", self.current_token.line, self.current_token.start_col)
+                return WhileNode(condition, body)
+            
+            elif token.value == "PRINT":
+                pr_ln = self.current_token.line
+                pr_col = self.current_token.start_col
+                self.advance()
+                if self.current_token.type == TT_LPAREN:
+                    lparen_ln = self.current_token.line
+                    lparen_col = self.current_token.start_col
+                    self.advance()
+                    tokens = []
+                    while self.current_token.type != TT_RPAREN:
+                        tokens.append(self.expr())
+                        if self.current_token.type != TT_RPAREN:
+                            if self.current_token.type == TT_COMMA:
+                                self.advance()
+                            else:
+                                PrintError(self.text, "Syntax Error", "Expected ',' after expression", lparen_ln, lparen_col)
+                        elif self.current_token.type == TT_RPAREN:
+                            self.advance()
+                            return printNode(tokens)
+                        else:
+                            PrintError(self.text, "Syntax Error", "'(' Never closed", lparen_ln, lparen_col)
+                else:
+                    PrintError(self.text, "Syntax Error", "Expected '(' after 'print'", pr_ln, pr_col)
+                    return None
+                
 
     def pow(self) -> BinOpNode:
         return self.bin_op(self.factor, (TT_POW,))
@@ -377,30 +469,30 @@ class Parser:
         return self.bin_op(self.arith_expr, COMPARATORS)
 
     def expr(self) -> BinOpNode:
-        if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="PRINT")):
-            pr_ln = self.current_token.line
-            pr_col = self.current_token.start_col
-            self.advance()
-            if self.current_token.type == TT_LPAREN:
-                lparen_ln = self.current_token.line
-                lparen_col = self.current_token.start_col
-                self.advance()
-                tokens = []
-                while self.current_token.type != TT_RPAREN:
-                    tokens.append(self.expr())
-                    if self.current_token.type != TT_RPAREN:
-                        if self.current_token.type == TT_COMMA:
-                            self.advance()
-                        else:
-                            PrintError(self.text, "Syntax Error", "Expected ',' after expression", lparen_ln, lparen_col)
-                    elif self.current_token.type == TT_RPAREN:
-                        self.advance()
-                        return printNode(tokens)
-                    else:
-                        PrintError(self.text, "Syntax Error", "'(' Never closed", lparen_ln, lparen_col)
-            else:
-                PrintError(self.text, "Syntax Error", "Expected '(' after 'print'", pr_ln, pr_col)
-                return None
+        # if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="PRINT")):
+        #     pr_ln = self.current_token.line
+        #     pr_col = self.current_token.start_col
+        #     self.advance()
+        #     if self.current_token.type == TT_LPAREN:
+        #         lparen_ln = self.current_token.line
+        #         lparen_col = self.current_token.start_col
+        #         self.advance()
+        #         tokens = []
+        #         while self.current_token.type != TT_RPAREN:
+        #             tokens.append(self.expr())
+        #             if self.current_token.type != TT_RPAREN:
+        #                 if self.current_token.type == TT_COMMA:
+        #                     self.advance()
+        #                 else:
+        #                     PrintError(self.text, "Syntax Error", "Expected ',' after expression", lparen_ln, lparen_col)
+        #             elif self.current_token.type == TT_RPAREN:
+        #                 self.advance()
+        #                 return printNode(tokens)
+        #             else:
+        #                 PrintError(self.text, "Syntax Error", "'(' Never closed", lparen_ln, lparen_col)
+        #     else:
+        #         PrintError(self.text, "Syntax Error", "Expected '(' after 'print'", pr_ln, pr_col)
+        #         return None
         
         if self.current_token.type == TT_IDENTIFIER:
             var_name = self.current_token
@@ -490,6 +582,18 @@ class Interpreter:
                     return self.visit(case[1])
             if node.else_case != None:
                 return self.visit(node.else_case)
+            return Token()
+        elif isinstance(node, forNode):
+            self.variable_table.set(node.identifier.value, self.visit(node.start).value)
+            i = self.visit(node.start).value
+            while (self.visit(node.start).value - self.visit(node.end).value) * (i - self.visit(node.end).value) >= 0:
+                self.variable_table.set(node.identifier.value, i)
+                self.visit(node.body)
+                i += self.visit(node.step).value
+            return Token()
+        elif isinstance(node, WhileNode):
+            while self.visit(node.condition).value:
+                self.visit(node.body)
             return Token()
         elif isinstance(node, printNode):
             for token in node.tokens:
