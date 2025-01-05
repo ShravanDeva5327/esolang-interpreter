@@ -17,6 +17,7 @@ TT_POW = "POW"
 TT_LPAREN = "LPAREN"
 TT_RPAREN = "RPAREN"
 TT_COMMA = "COMMA"
+TT_NEWLINE = "NEWLINE"
 
 DATA_TYPES = (TT_INT, TT_FLOAT, TT_STR, TT_BOOL)
 NUM_DATA_TYPES = (TT_INT, TT_FLOAT)
@@ -37,7 +38,7 @@ TT_GTE = "GTE"
 COMPARATORS = (TT_ISEQ, TT_NOTEQ, TT_LT, TT_GT, TT_LTE, TT_GTE)
 
 KEYWORDS = ["and", "or", "not", "print", "true", "false",
-            "if", "then", "elif", "else","for", "to", "step", "while", "do"]
+            "if", "then", "end", "elif", "else","for", "to", "step", "while", "do"]
 
 def line_in_text(text: str, line: int) -> str:
     lines = text.split("\n")
@@ -191,14 +192,12 @@ class Lexer:
                     self.advance()
                 else:
                     tokens.append(Token(ln, col, TT_GT))
+            elif self.current_char in ";\n":
+                tokens.append(Token(ln, col, TT_NEWLINE))
+                self.advance()
             else:
                 PrintError(self.text, "Syntax Error", "Invalid Syntax", ln, col)
                 return None
-        for i in range(len(tokens) - 1):
-            if tokens[i].type == TT_INT and tokens[i + 1].type == TT_LPAREN:
-                raise Exception(f"Invalid Syntax: int cannot be called")
-            if tokens[i].type == TT_FLOAT and tokens[i + 1].type == TT_LPAREN:
-                raise Exception(f"Invalid Syntax: float cannot be called")
         return tokens
 
 
@@ -243,14 +242,13 @@ class printNode:
         return f"{{print {self.tokens}}}"
     
 class ifNode:
-    def __init__(self, cases: list[tuple[Node, Node]], else_case: Node):
-        self.cases = cases
+    def __init__(self, if_case, else_case: Node):
+        self.if_case = if_case
         self.else_case = else_case
 
     def __repr__(self) -> str:
         string = ""
-        for i in range(len(self.cases)):
-            string += f"if {self.cases[i][0]} then {self.cases[i][1]}\n" if i == 0 else f"elif {self.cases[i][0]} then {self.cases[i][1]}\n"
+        string += f"if {self.if_case[0]} then {self.if_case[1]}\n"
         if self.else_case != None:
             string += f"else {self.else_case}"
         
@@ -329,10 +327,21 @@ class Parser:
                 return None
         elif token.type == TT_KEYWORD:
             if token.value == "IF":
-                cases = []
-                else_case = None
+                else_case_statements = None
                 self.advance()
                 condition = self.expr()
+                # if condition == None:
+                #     PrintError(self.text, "Syntax Error", "Expected an expression after 'if'", token.line, token.start_col)
+                #     return None
+                # if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="THEN")):
+                #     PrintError(self.text, "Syntax Error", "Expected 'then' after condition", self.current_token.line, self.current_token.start_col)
+                #     return None
+                # self.advance()
+                # then = self.expr()
+                # if then == None:
+                #     PrintError(self.text, "Syntax Error", "Expected an expression after 'then'", self.current_token.line, self.current_token.start_col)
+                #     return None
+                # cases.append((condition, then))
                 if condition == None:
                     PrintError(self.text, "Syntax Error", "Expected an expression after 'if'", token.line, token.start_col)
                     return None
@@ -340,36 +349,32 @@ class Parser:
                     PrintError(self.text, "Syntax Error", "Expected 'then' after condition", self.current_token.line, self.current_token.start_col)
                     return None
                 self.advance()
-                then = self.expr()
-                if then == None:
-                    PrintError(self.text, "Syntax Error", "Expected an expression after 'then'", self.current_token.line, self.current_token.start_col)
+                then_statements = [self.expr()]
+                while self.current_token.type == TT_NEWLINE:
+                    self.advance()
+                    then_statements.append(self.expr())
+                if then_statements == None:
+                    PrintError(self.text, "Syntax Error", "Expected an expression after 'if'", token.line, token.start_col)
                     return None
-                cases.append((condition, then))
-                while self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="ELIF")):
-                    self.advance()
-                    condition = self.expr()
-                    if condition == None:
-                        PrintError(self.text, "Syntax Error", "Expected an expression after 'elif'", self.current_token.line, self.current_token.start_col)
-                        return None
-                    if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="THEN")):
-                        if not self.current_token == None:
-                            PrintError(self.text, "Syntax Error", "Expected 'then' after condition", self.current_token.line, self.current_token.start_col)
-                        else:
-                            PrintError(self.text, "Syntax Error", "Expected 'then' after condition", token.line, token.start_col)                    
-                    self.advance()
-                    then = self.expr()
-                    if then == None:
-                        PrintError(self.text, "Syntax Error", "Expected an expression after 'then'", self.current_token.line, self.current_token.start_col)
-                        return None
-                    cases.append((condition, then))
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
+                    PrintError(self.text, "Syntax Error", "Expected ')' after statements", self.current_token.line, self.current_token.start_col)
+                    return None
+                self.advance()
+                ifcase = (condition, then_statements)
                 if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="ELSE")):
                     self.advance()
-                    else_case = self.expr()
-                    if else_case == None:
+                    else_case_statements = [self.expr()]
+                    while self.current_token.type == TT_NEWLINE:
+                        self.advance()
+                        else_case_statements.append(self.expr())
+                    if else_case_statements == None:
                         PrintError(self.text, "Syntax Error", "Expected an expression after 'else'", self.current_token.line, self.current_token.start_col)
                         return None
-                
-                return ifNode(cases, else_case)
+                    if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
+                        PrintError(self.text, "Syntax Error", "Expected ')' after statements", self.current_token.line, self.current_token.start_col)
+                        return None
+                    self.advance()
+                return ifNode(ifcase, else_case_statements)
             elif token.value == "FOR":
                 self.advance()
                 if self.current_token.type != TT_IDENTIFIER:
@@ -401,10 +406,15 @@ class Parser:
                 if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="DO")):
                     PrintError(self.text, "Syntax Error", "Expected 'do' after step", self.current_token.line, self.current_token.start_col)
                 self.advance()
-                body = self.expr()
+                body = [self.expr()]
+                while self.current_token.type == TT_NEWLINE:
+                    self.advance()
+                    body.append(self.expr())
                 if body == None:
                     PrintError(self.text, "Syntax Error", "Expected an expression after 'do'", self.current_token.line, self.current_token.start_col)
-                
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
+                    PrintError(self.text, "Syntax Error", "Expected ')' after statements", self.current_token.line, self.current_token.start_col)
+                self.advance()
                 return forNode(var, start_, end_, step_, body)
 
             elif token.value == "WHILE":    
@@ -415,9 +425,15 @@ class Parser:
                 if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="DO")):
                     PrintError(self.text, "Syntax Error", "Expected 'do' after condition", self.current_token.line, self.current_token.start_col)
                 self.advance()
-                body = self.expr()
+                body = [self.expr()]
+                while self.current_token.type == TT_NEWLINE:
+                    self.advance()
+                    body.append(self.expr())
                 if body == None:
                     PrintError(self.text, "Syntax Error", "Expected an expression after 'do'", self.current_token.line, self.current_token.start_col)
+                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
+                    PrintError(self.text, "Syntax Error", "Expected ')' after statements", self.current_token.line, self.current_token.start_col)
+                self.advance()
                 return WhileNode(condition, body)
             
             elif token.value == "PRINT":
@@ -543,7 +559,10 @@ class Parser:
         return left
 
     def parse(self):
-        res = self.expr()
+        res = [self.expr()]
+        while self.current_token.type == TT_NEWLINE:
+            self.advance()
+            res.append(self.expr())
         if self.idx < len(self.tokens):
             PrintError(self.text, "Syntax Error", "Expected an operator", self.current_token.line, self.current_token.start_col,)
             return None
@@ -575,11 +594,9 @@ class Interpreter:
         if isinstance(node, Node):
             return node.token
         elif isinstance(node, ifNode):
-            for case in node.cases:
-                if self.visit(case[0]).__eq__(Token()):
-                    PrintError(self.text, "Runtime Error", "Expected an expression after 'if'", 1, 1)
-                if self.visit(case[0]).value:
-                    return self.visit(case[1])
+            if self.visit(node.if_case[0]).value:
+                for statement in node.if_case[1]:
+                    self.visit(statement)
             if node.else_case != None:
                 return self.visit(node.else_case)
             return Token()
@@ -588,12 +605,14 @@ class Interpreter:
             i = self.visit(node.start).value
             while (self.visit(node.start).value - self.visit(node.end).value) * (i - self.visit(node.end).value) >= 0:
                 self.variable_table.set(node.identifier.value, i)
-                self.visit(node.body)
+                for statement in node.body:
+                    self.visit(statement)
                 i += self.visit(node.step).value
             return Token()
         elif isinstance(node, WhileNode):
             while self.visit(node.condition).value:
-                self.visit(node.body)
+                for statement in node.body:
+                    self.visit(statement)
             return Token()
         elif isinstance(node, printNode):
             for token in node.tokens:
