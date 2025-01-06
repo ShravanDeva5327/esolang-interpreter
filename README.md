@@ -93,7 +93,7 @@ The interpreter includes robust error handling for various stages of code execut
   Syntax Error: Invalid Syntax
   line 1, column 10
   ```
-- Runtime Errors: Handles issues such as division by zero or undefined variables.
+- Runtime Errors: Handles issues such as division by zero, undefined variables or type errors.
   ### input
   ``` code
   1 + 'string'
@@ -110,7 +110,7 @@ The interpreter includes robust error handling for various stages of code execut
 ## How to Run the Interpreter
 To execute the interpreter, use the following command:
 ```code
-  python main.py [file]
+  python3 main.py [file]
 ```
 
 - REPL Mode: If no file is provided, the interpreter will run in interactive mode, allowing you to enter and execute code interactively.
