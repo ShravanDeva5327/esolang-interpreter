@@ -12,7 +12,7 @@ Basic Esolang Interpreter
 ├── utils.py               # Shared utility functions and classes
 ├── grammar.txt            # Defines the esolang grammar and syntax rules
 ├── examples
-│   ├── fibonacci.txt  # Example program to calculate Fibonacci sequence
+│   ├── fibonacci.txt      # Example program to calculate Fibonacci sequence
 └── README.md              # Project documentation
 ```
 
