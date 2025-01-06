@@ -1,4 +1,6 @@
 from lexer import *
+from parser import *
+from interpreter import *
 import argparse
 
 arg_parser = argparse.ArgumentParser(description='')
@@ -6,6 +8,7 @@ arg_parser.add_argument('file', nargs='?', default=None, help='File to run')
 args = arg_parser.parse_args()
 
 if args.file is None:
+    print("Basic Esolang Interpreter Written in Python")
     variables = {}
     while True:
         try:
@@ -26,8 +29,8 @@ if args.file is None:
                     for ast in ast_list:
                         interpreter_ = Interpreter(text, ast, variables)
                         result = interpreter_.interpret()
-                        # if result is not None:
-                            # print(f'{result.value}: {result.type}')
+                        if result is not None:
+                            print(f'{result.value}: {result.type}')
         
         except EOFError:
             print("")

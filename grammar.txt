@@ -1,7 +1,7 @@
-																		|
+																		                                    |
 statements  : NEWLINE* (expr NEWLINE*)*                                 |
 expression  : print(expr,...)?                                          |
-			: identifier (EQUALS expression)?                           |
+			      : identifier (EQUALS expression)?                           |
             : comp-expr ((AND|OR) comp-expr)*                           |
 comp-expr   : NOT comp-expr                                             |
             : arith-expr ((ISE|NE|LT|GT|LTE|GTE) arit-expr)*            |   order of priority   
@@ -20,9 +20,3 @@ while-statements: while expr do (statements)
 if-expr     : if expr then expr (elif expr then expr)* (else expr)? end
 for-expr    : for identifier EQUALS expr to expr (step expr)? do expr
 while-expr  : while expr do expr
-
-# Variables
-
-  var_name     =    expression
-    ^          ^
-identifier   equals
