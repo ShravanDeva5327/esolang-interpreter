@@ -47,7 +47,7 @@ class PrintError:
         if start_col is None:
             start_col = len(error_line)
         wiggle = " " * (start_col - 1) + "^^" + "\n"
-        message = f"{error_line}{wiggle}{error_name}: {details}\nline {line}, column {start_col}"
+        message = f"\n{error_line}{wiggle}\n{error_name}: {details}\nline {line}, column {start_col}"
         raise Exception(message)
     
 class Token:

@@ -1,22 +1,16 @@
-																		                                    |
-statements  : NEWLINE* (expr NEWLINE*)*                                 |
-expression  : print(expr,...)?                                          |
-			      : identifier (EQUALS expression)?                           |
-            : comp-expr ((AND|OR) comp-expr)*                           |
-comp-expr   : NOT comp-expr                                             |
-            : arith-expr ((ISE|NE|LT|GT|LTE|GTE) arit-expr)*            |   order of priority   
-arith-expr  : term ((PLUS|MINUS) term)*                                 |
-term        : power ((MUL|DIV) power)*                                  |         
-power       : factor (POW factor)*                                      |            
-factor      : INT|FLOAT|(expr)|identifier                               |
-            : if-expr|for-expr|while-expr                               |         
-                                                                        V
+Basic grammar for the language
 
+program     : statements
+statements  : NEWLINE* (expr NEWLINE*)*
+expr        : identifier (EQUALS expr)?
+              comp-expr ((AND|OR) comp-expr)*
+comp-expr   : NOT comp-expr ? arith-expr ((ISE|NE|LT|GT|LTE|GTE) arit-expr)*
+arith-expr  : term ((PLUS|MINUS) term)*
+term        : power ((MUL|DIV) power)*
+power       : factor (POW factor)*
+factor      : INT|FLOAT|(expr)|identifier|if-block|for-block|while-block
+              
 
-if-statements : if expr then (statements) else (statements)? end
-for-statements: for identifier EQUALS expr to expr (step expr)? do (statements)
-while-statements: while expr do (statements)
-
-if-expr     : if expr then expr (elif expr then expr)* (else expr)? end
-for-expr    : for identifier EQUALS expr to expr (step expr)? do expr
-while-expr  : while expr do expr
+if-block    : if expr then statements (else statements)? end
+for-block   : for identifier EQUALS expr to expr (step expr)? do statements end
+while-block : while expr do statements end

@@ -29,7 +29,8 @@ class Interpreter:
                 for statement in node.if_case[1]:
                     self.visit(statement)
             if node.else_case != None:
-                return self.visit(node.else_case)
+                for statement in node.else_case:
+                    self.visit(statement)
             return Token()
         elif isinstance(node, forNode):
             self.variable_table.set(node.identifier.value, self.visit(node.start).value)
@@ -47,7 +48,7 @@ class Interpreter:
             return Token()
         elif isinstance(node, printNode):
             for token in node.tokens:
-                print(self.visit(token).value, end="")
+                print(self.visit(token).value, end=" ")
             print()
             return Token()
         elif isinstance(node, varAssignNode):
@@ -79,7 +80,7 @@ class Interpreter:
             elif node.op.type == TT_MINUS:
                 if ltype == TT_STR or rtype == TT_STR:
                     PrintError(self.text, "Runtime Error", "Invalid operator '-' for string", node.op.line, node.op.start_col)
-                result = lvalue - rvalue
+                result_value = lvalue - rvalue
                 result_type = TT_FLOAT if ltype == TT_FLOAT or rtype == TT_FLOAT else TT_INT
             elif node.op.type == TT_MUL:
                 if ltype == TT_STR and rtype == TT_INT or ltype == TT_INT and rtype == TT_STR:

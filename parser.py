@@ -53,7 +53,7 @@ class Parser:
                 return None
         elif token.type == TT_KEYWORD:
             if token.value == "IF":
-                else_case_statements = None
+                else_block = None
                 self.advance()
                 condition = self.expr()
                 if condition == None:
@@ -66,33 +66,36 @@ class Parser:
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line, self.current_token.start_col)
                     return None
                 self.advance()
-                then_statements = [self.expr()]
+                if_block = [self.expr()]
                 while self.current_token.type == TT_NEWLINE:
                     self.advance()
-                    then_statements.append(self.expr())
-                if then_statements == None:
+                    if_block.append(self.expr())
+                if if_block == None:
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", token.line)
                     return None
-                if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
-                    PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line)
-                    return None
-                self.advance()
-                ifcase = (condition, then_statements)
-                if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="ELSE")):
+                if self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
+                    ifcase = (condition, if_block)
+                    self.advance()
+                    return ifNode(ifcase, else_block)
+                elif self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="ELSE")):
+                    ifcase = (condition, if_block)
                     else_ln = self.current_token.line
                     self.advance()
-                    else_case_statements = [self.expr()]
+                    else_block = [self.expr()]
                     while self.current_token.type == TT_NEWLINE:
                         self.advance()
-                        else_case_statements.append(self.expr())
-                    if else_case_statements == None:
+                        else_block.append(self.expr())
+                    if else_block == None:
                         PrintError(self.text, "Syntax Error", "Invalid Syntax", else_ln)
                         return None
                     if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
                         PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line)
                         return None
                     self.advance()
-                return ifNode(ifcase, else_case_statements)
+                    return ifNode(ifcase, else_block)
+                else:
+                    PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line)
+                    return None
             elif token.value == "FOR":
                 self.advance()
                 if self.current_token == Token():
@@ -128,16 +131,16 @@ class Parser:
                 if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="DO")):
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line, self.current_token.start_col)
                 self.advance()
-                body = [self.expr()]
+                block = [self.expr()]
                 while self.current_token.type == TT_NEWLINE:
                     self.advance()
-                    body.append(self.expr())
-                if body == None:
+                    block.append(self.expr())
+                if block == None:
                     PrintError(self.text, "Syntax Error", "Expected an expression after 'do'", self.current_token.line, self.current_token.start_col)
                 if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
                     PrintError(self.text, "Syntax Error", "Expected ')' after statements", self.current_token.line, self.current_token.start_col)
                 self.advance()
-                return forNode(var, start_, end_, step_, body)
+                return forNode(var, start_, end_, step_, block)
 
             elif token.value == "WHILE":    
                 self.advance()
@@ -147,16 +150,16 @@ class Parser:
                 if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="DO")):
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line, self.current_token.start_col)
                 self.advance()
-                body = [self.expr()]
+                block = [self.expr()]
                 while self.current_token.type == TT_NEWLINE:
                     self.advance()
-                    body.append(self.expr())
-                if body == None:
+                    block.append(self.expr())
+                if block == None:
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line, self.current_token.start_col)
                 if not self.current_token.__eq__(Token(type_=TT_KEYWORD, value_="END")):
                     PrintError(self.text, "Syntax Error", "Invalid Syntax", self.current_token.line, self.current_token.start_col)
                 self.advance()
-                return WhileNode(condition, body)
+                return WhileNode(condition, block)
             
             elif token.value == "PRINT":
                 pr_ln = self.current_token.line
